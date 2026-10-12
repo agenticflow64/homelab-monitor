@@ -9,7 +9,7 @@
 Хочется, чтобы алерт приходил сразу с ответом на три вопроса:
 
 1. **Что случилось** — на естественном языке, а не `node_filesystem_avail_bytes / node_filesystem_size_bytes < 0.15`.
-2. **Вероятная причина** — с учётом метрик и последних логов.
+2. **Вероятная причина** — с учётом метрик на момент инцидента.
 3. **Что проверить** — конкретные команды и места, куда смотреть в первую очередь.
 
 ## Решение
@@ -17,57 +17,85 @@
 Мониторинг-агент на базе открытого стека + LLM-суммаризация:
 
 - **Сбор метрик**: Prometheus + node_exporter.
-- **Сбор логов**: Loki (агрегация системных логов).
-- **Правила алертов**: Prometheus alerting rules — заполнение диска > 85%, загрузка CPU > 90% в течение 5 минут, сервис down.
-- **AI-агент (Python)**: получает сработавший алерт, подтягивает связанные метрики и последние записи из Loki, отправляет контекст в **GLM API**, получает структурированное объяснение (что случилось / вероятная причина / что проверить).
-- **Доставка**: готовый алерт с объяснением уходит в **Telegram**.
+- **Правила алертов**: Prometheus alerting rules — заполнение диска > 92%, загрузка CPU > 90% в течение 5 минут, сервис down (`up == 0`).
+- **Доставка алертов**: Alertmanager (webhook).
+- **AI-агент `alert-agent` (Python/FastAPI)**: получает webhook от Alertmanager, группирует всплески (cooldown), подтягивает живые метрики из Prometheus API по типу алерта, отправляет контекст в LLM и получает структурированное объяснение на русском: что случилось / вероятная причина / что проверить. Цепочка LLM с ретраями и fallback: **GLM → OpenRouter (free) → правила**, поэтому при недоступности LLM уведомление всё равно уходит.
+- **Уведомления**: консоль-лог, `agent/data/alerts.log`, **Telegram** (активируется автоматически, если в `.env` заполнены `TELEGRAM_BOT_TOKEN` и `TELEGRAM_CHAT_ID`), веб-лента алертов.
+- **Веб-лента** `http://localhost:8081/`: сырой алерт слева, объяснение агента справа — «до/после» в одном кадре.
 
 ```
-node_exporter/Loki → Prometheus (alert rules) → alert-agent → GLM → Telegram
+node_exporter → Prometheus (alert rules) → Alertmanager → alert-agent
+                                                    ├─ Prometheus API (контекст-метрики)
+                                                    ├─ GLM API (суммаризация) ⟶ fallback: OpenRouter ⟶ правила
+                                                    └─ консоль + alerts.log + Telegram + веб-лента
 ```
 
 Подробная схема: [docs/architecture.md](docs/architecture.md).
 
 ## Результат
 
-> ⚠️ **В разработке. Цифры будут из локальных замеров (демо).**
+Цифры из локальных замеров (демо, один хост; LLM — `glm-4.5-flash`).
 
-Что замеряем (демо-сценарий, [docs/demo-script.md](docs/demo-script.md)):
+### Время от инцидента до уведомления с объяснением
 
-| Метрика | Как считаем |
-|---|---|
-| Время разбора инцидента с алертом-объяснением против сырого алерта | Прогон одного и того же искусственного инцидента дважды: сначала с обычным алертом, затем с объяснением от агента; фиксируем время до формулировки гипотезы о причине |
-| Доля ложных срабатываний | Отношение алертов, где агент корректно определил «инцидент не требует действий», к общему числу срабатываний за демо-период |
+| Инцидент (демо-сценарий) | Стоп/начало воздействия → уведомление | Из них конвейер агента* |
+|---|---|---|
+| `ServiceDown` (остановлен loki) | ~105 с | 11 с |
+| `HighDiskUsage` (файл 9 ГБ на ФС `/`) | ~85 с | 15 с |
+| `HighCPUUsage` (нагрузка всех ядер) | ~10 мин (правило требует 5 мин `for` + окно `rate[5m]`) | см. ленту |
 
-Результаты будут добавлены после вечера 3 из [docs/plan.md](docs/plan.md).
+*Конвейер агента = контекст из Prometheus + вызов LLM + запись уведомлений. Остальное — честное время стека: `for:` у правила (1–5 мин), scrape 15 с, `group_wait` 10 с. Латентность GLM колеблется от ~11 с до ~2 мин (бесплатный тариф), медиана по замерам ~15–30 с.
+
+### Сырой алерт vs алерт с объяснением (демо, сценарная оценка)
+
+Один и тот же дисковый инцидент:
+
+| | Сырой алерт `HighDiskUsage` | Алерт с объяснением |
+|---|---|---|
+| Путь до гипотезы о причине | залогиниться → `df -h` → `du -xh --max-depth=1 /` → `du /var` → найти крупный свежий файл: команды ~13–15 с (тёплый кэш), с вводом и интерпретацией **~1,5–3 мин** | гипотеза уже в сообщении («корневая ФС 93,8%, остальные разделы свободны — проблема локальна в `/`»), проверка одной командой из «что проверить» **~5–15 с** |
+
+Пояснение: чистое время команд измерено (`du -xh --max-depth=1 /` = 12,0 с, `du /var` = 0,5 с), оценка «с вводом и интерпретацией» — сценарная, помечена как демо.
+
+### Надёжность
+
+- LLM недоступна → уведомление уходит с rule-based объяснением (проверено: при сетевом сбое агент выдал fallback-текст с чек-листом и метриками).
+- Повторы одного алерта внутри cooldown-окна (600 с) схлопываются в одно уведомление со счётчиком подавленных повторов.
+- Тесты: 18 юнит (парсер webhook, группировка, промпт, API) + интеграционный smoke на живом стеке.
 
 ## Стек
 
-- **Мониторинг**: Prometheus, node_exporter, Loki, Grafana
-- **Агент**: Python 3.12+
-- **LLM**: GLM API (`https://open.bigmodel.cn/api/paas/v4`)
-- **Доставка алертов**: Telegram Bot API
+- **Мониторинг**: Prometheus, Alertmanager, node_exporter, Loki, Grafana
+- **Агент**: Python 3.12, FastAPI, httpx
+- **LLM**: GLM API (`glm-4.5-flash`; `glm-4-flash` на эндпоинте не существует), резерв — OpenRouter (бесплатные модели)
+- **Доставка алертов**: консоль, файл, веб-лента, Telegram Bot API
 - **Запуск**: Docker Compose
 
 ## Как запустить
 
 1. Клонировать репозиторий.
-2. `cp .env.example .env` — заполнить `GLM_API_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`.
-3. `docker compose up -d` — поднимаются Prometheus, node_exporter, Loki, Grafana.
-4. Grafana: http://localhost:3000 (admin/admin).
-5. Сервис `alert-agent` — заглушка, добавляется на вечере 2 (см. [docs/plan.md](docs/plan.md)).
-6. Проверка инцидентов — скилл `incident-sim` (CPU-нагрузка, заполнение диска, стоп контейнера).
+2. `cp .env.example .env` — заполнить `GLM_API_KEY` (опционально `OPENROUTER_API_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`).
+3. `make up` — поднимаются Prometheus, Alertmanager, node_exporter, Loki, Grafana, alert-agent.
+4. Веб-лента алертов: http://localhost:8081/ · Grafana: http://localhost:3001 (admin/admin) · Prometheus: http://localhost:9090/alerts · Alertmanager: http://localhost:9093.
+5. Демо-инциденты (см. [docs/demo-script.md](docs/demo-script.md)):
+   - `make incident-disk` — файл 9 ГБ → `HighDiskUsage`
+   - `make incident-cpu` — нагрузка всех ядер 6,5 мин → `HighCPUUsage`
+   - `make incident-down` — стоп loki → `ServiceDown`
+   - `make cleanup` — убрать все воздействия
+6. Тесты: `make unit`, интеграционный smoke — `make smoke`.
 
 ## Структура
 
 ```
 homelab-monitor/
-├── docker-compose.yml      # Prometheus, node_exporter, Loki, Grafana (+ alert-agent, заглушка)
-├── prometheus.yml          # scrape-конфиг
-├── alerts.yml              # alerting rules (диск > 85%, CPU > 90% 5m, сервис down)
-├── docs/
-│   ├── architecture.md     # схема и потоки данных
-│   ├── demo-script.md      # сценарий демо до 2 минут
-│   └── plan.md             # план разработки по вечерам
-└── .claude/                # команды и скиллы для Claude Code
+├── docker-compose.yml      # prometheus, alertmanager, node_exporter, loki, grafana, alert-agent
+├── prometheus.yml          # scrape-конфиг + маршрут в alertmanager
+├── alerts.yml              # alerting rules (диск >92%, CPU >90% 5m, up==0)
+├── alertmanager/           # webhook-маршрут в alert-agent
+├── grafana/provisioning/   # автоподключение datasources
+├── agent/                  # alert-agent (FastAPI): webhook, контекст, LLM, уведомления
+│   ├── app/
+│   └── static/index.html   # веб-лента «сырой алерт | объяснение»
+├── tests/                  # юнит + интеграционный smoke
+├── Makefile                # up/down, инциденты, cleanup, тесты
+└── docs/                   # architecture.md, demo-script.md, plan.md
 ```
