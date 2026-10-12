@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git *)",
+      "Bash(docker compose *)",
+      "Bash(python *)",
+      "Bash(python3 *)",
+      "Bash(curl http://localhost*)",
+      "Bash(curl http://127.0.0.1*)"
+    ],
+    "deny": [
+      "Read(.env/**)",
+      "Read(.env)",
+      "Bash(sudo *)",
+      "Bash(rm -rf *)"
+    ]
+  }
+}

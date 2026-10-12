@@ -1,0 +1,75 @@
+# docker-compose.yml — homelab-monitor
+# Запуск: cp .env.example .env && заполнить ключи, затем docker compose up -d
+
+services:
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    container_name: homelab-prometheus
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./alerts.yml:/etc/prometheus/alerts.yml:ro
+      - monitoring-data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=7d
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+
+  node_exporter:
+    # Опционально: метрики хоста. profile "full" — поднимается по желанию:
+    #   docker compose --profile full up -d
+    # Внутри VM/CI можно не поднимать, тогда правила по node_* не сработают.
+    image: prom/node-exporter:v1.9.0
+    container_name: homelab-node-exporter
+    pid: host
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - --path.procfs=/host/proc
+      - --path.sysfs=/host/sys
+      - --path.rootfs=/rootfs
+    ports:
+      - "9100:9100"
+    profiles: ["full"]
+    restart: unless-stopped
+
+  loki:
+    image: grafana/loki:3.4.2
+    container_name: homelab-loki
+    volumes:
+      - monitoring-data:/loki
+    ports:
+      - "3100:3100"
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.5.2
+    container_name: homelab-grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - monitoring-data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+      - loki
+    restart: unless-stopped
+
+  # --- alert-agent: реализуется на вечере 2 (docs/plan.md) ---
+  # alert-agent:
+  #   build: ./agent
+  #   container_name: homelab-alert-agent
+  #   env_file: .env
+  #   volumes:
+  #     - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+  #   depends_on:
+  #     - prometheus
+  #   restart: unless-stopped
+
+volumes:
+  monitoring-data:

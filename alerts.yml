@@ -1,0 +1,35 @@
+# alerts.yml — правила алертов homelab-monitor
+# Подключается из prometheus.yml через rule_files.
+
+groups:
+  - name: homelab-basic
+    rules:
+      - alert: HighDiskUsage
+        expr: |
+          (1 - node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs"}
+               / node_filesystem_size_bytes{fstype!~"tmpfs|overlay|squashfs"}) * 100 > 85
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Диск заполнен более чем на 85%"
+          description: "Файловая система {{ $labels.mountpoint }} на {{ $labels.instance }}: занято {{ $value | printf \"%.1f\" }}%"
+
+      - alert: HighCPUUsage
+        expr: |
+          100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 90
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Загрузка CPU выше 90% в течение 5 минут"
+          description: "Инстанс {{ $labels.instance }}: средняя загрузка CPU {{ $value | printf \"%.1f\" }}%"
+
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Сервис недоступен (scrape failed)"
+          description: "Цель {{ $labels.job }}/{{ $labels.instance }} не отвечает более 1 минуты"
