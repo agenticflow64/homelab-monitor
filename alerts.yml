@@ -5,14 +5,16 @@ groups:
   - name: homelab-basic
     rules:
       - alert: HighDiskUsage
+        # Порог поднят под демо-хост: системная ФС постоянно ~89% занята,
+        # инцидент-симуляция доливает файл до >92%.
         expr: |
           (1 - node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs"}
-               / node_filesystem_size_bytes{fstype!~"tmpfs|overlay|squashfs"}) * 100 > 85
-        for: 2m
+               / node_filesystem_size_bytes{fstype!~"tmpfs|overlay|squashfs"}) * 100 > 92
+        for: 1m
         labels:
           severity: warning
         annotations:
-          summary: "Диск заполнен более чем на 85%"
+          summary: "Диск заполнен более чем на 92%"
           description: "Файловая система {{ $labels.mountpoint }} на {{ $labels.instance }}: занято {{ $value | printf \"%.1f\" }}%"
 
       - alert: HighCPUUsage

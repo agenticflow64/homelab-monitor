@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>homelab-monitor — лента алертов</title>
+<style>
+  :root {
+    --bg: #0f172a;
+    --bg-card: #111c33;
+    --bg-code: #0b1222;
+    --text: #e2e8f0;
+    --muted: #7c8aa5;
+    --accent-a: #22d3ee;
+    --accent-b: #8b5cf6;
+    --border: #1e293b;
+    --critical: #f87171;
+    --warning: #fbbf24;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.55 "Segoe UI", system-ui, -apple-system, sans-serif;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 28px 20px 60px; }
+  header { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; margin-bottom: 6px; }
+  h1 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 700;
+    background: linear-gradient(90deg, var(--accent-a), var(--accent-b));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .sub { color: var(--muted); font-size: 13px; }
+  .stats { margin: 14px 0 22px; display: flex; gap: 10px; flex-wrap: wrap; }
+  .pill {
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 3px 12px;
+    font-size: 13px;
+    color: var(--muted);
+    background: var(--bg-card);
+  }
+  .pill b { color: var(--text); }
+  .empty {
+    border: 1px dashed var(--border);
+    border-radius: 14px;
+    padding: 48px 20px;
+    text-align: center;
+    color: var(--muted);
+  }
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    margin-bottom: 18px;
+    overflow: hidden;
+  }
+  .card-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+  .sev {
+    font-size: 11px;
+    letter-spacing: .08em;
+    font-weight: 700;
+    padding: 2px 9px;
+    border-radius: 6px;
+    text-transform: uppercase;
+  }
+  .sev.critical { color: #1f0d0d; background: var(--critical); }
+  .sev.warning { color: #211a06; background: var(--warning); }
+  .sev.unknown { color: var(--text); background: #475569; }
+  .card-head .name { font-weight: 700; font-size: 16px; }
+  .card-head .when { color: var(--muted); font-size: 12px; margin-left: auto; }
+  .cols { display: grid; grid-template-columns: 1fr 1.25fr; }
+  @media (max-width: 860px) { .cols { grid-template-columns: 1fr; } }
+  .col { padding: 16px 18px; }
+  .col + .col { border-left: 1px solid var(--border); }
+  @media (max-width: 860px) { .col + .col { border-left: none; border-top: 1px solid var(--border); } }
+  .col h3 {
+    margin: 0 0 10px;
+    font-size: 11px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 600;
+  }
+  .col.raw { background: var(--bg-code); }
+  .col.raw pre {
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font: 12.5px/1.6 ui-monospace, "Cascadia Mono", Menlo, Consolas, monospace;
+    color: #9fb0cc;
+  }
+  .expl { font-size: 14.5px; }
+  .expl .sec { margin-bottom: 10px; }
+  .expl .sec b {
+    display: block;
+    font-size: 12px;
+    letter-spacing: .06em;
+    margin-bottom: 2px;
+    background: linear-gradient(90deg, var(--accent-a), var(--accent-b));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .expl .sec span { white-space: pre-wrap; }
+  .meta {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .meta .fallback { color: var(--warning); }
+  details.metrics { margin-top: 8px; color: var(--muted); font-size: 12px; }
+  details.metrics summary { cursor: pointer; user-select: none; }
+  details.metrics pre { font-size: 12px; color: #9fb0cc; }
+  footer { margin-top: 26px; color: var(--muted); font-size: 12px; text-align: center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>homelab-monitor · лента алертов</h1>
+    <span class="sub">Prometheus → Alertmanager → alert-agent (LLM-объяснение)</span>
+  </header>
+
+  <div class="stats">
+    <span class="pill">алертов с объяснением: <b id="st-total">0</b></span>
+    <span class="pill">critical: <b id="st-crit">0</b></span>
+    <span class="pill">warning: <b id="st-warn">0</b></span>
+    <span class="pill">обновлено: <b id="st-upd">—</b></span>
+  </div>
+
+  <div id="feed"><div class="empty">Пока тихо. Запусти демо-инцидент: <b>make incident-disk</b> / <b>make incident-cpu</b> / <b>make incident-down</b></div></div>
+
+  <footer>демо-стенд портфолио · цифры из локальных замеров</footer>
+</div>
+
+<script>
+const HEADERS = [
+  ["ЧТО СЛУЧИЛОСЬ", "что случилось"],
+  ["ВЕРОЯТНАЯ ПРИЧИНА", "вероятная причина"],
+  ["ЧТО ПРОВЕРИТЬ", "что проверить"],
+];
+
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"']/g, c => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  }[c]));
+}
+
+function splitExplanation(text) {
+  // Модель может отдать разделы с двоеточиями в разных регистрах — ищем по верхнему.
+  const upper = text.toUpperCase();
+  const positions = HEADERS.map(([h]) => upper.indexOf(h));
+  const sections = [];
+  for (let i = 0; i < HEADERS.length; i++) {
+    if (positions[i] === -1) continue;
+    const start = positions[i];
+    const end = (i + 1 < HEADERS.length && positions[i + 1] !== -1) ? positions[i + 1] : text.length;
+    const body = text.slice(start, end)
+      .replace(new RegExp(HEADERS[i][0] + "\\s*:?", "i"), "")
+      .trim();
+    sections.push({ title: HEADERS[i][1], body });
+  }
+  if (!sections.length) sections.push({ title: "объяснение", body: text });
+  return sections;
+}
+
+function renderMetrics(m) {
+  if (!m || !m.length) return "";
+  const rows = m.map(r => {
+    if (r.error) return `# ${r.title} — нет данных (${r.error})`;
+    const series = r.series.map(p => {
+      const labels = Object.entries(p.labels || {}).map(([k, v]) => `${k}="${v}"`).join(",");
+      return `${r.title}{${labels}} = ${p.value}`;
+    }).join("\n");
+    return `# ${r.title}\n${series || "(нет точек)"}`;
+  }).join("\n\n");
+  return `<details class="metrics"><summary>метрики из Prometheus (${m.length})</summary><pre>${esc(rows)}</pre></details>`;
+}
+
+function renderAlert(a) {
+  const e = a.explanation || {};
+  const raw = (a.raw || []).map(r => {
+    const labels = Object.entries(r.labels || {}).map(([k, v]) => `${k}="${v}"`).join(", ");
+    const ann = Object.entries(r.annotations || {}).map(([k, v]) => `${k}: ${v}`).join("\n");
+    return `ALERT{${labels}}\n${ann}\nstartsAt: ${r.startsAt || "?"} (${r.status || "firing"})`;
+  }).join("\n\n");
+  const secs = splitExplanation(e.text || "").map(s =>
+    `<div class="sec"><b>${esc(s.title)}</b><span>${esc(s.body)}</span></div>`
+  ).join("");
+  const t = a.timings_ms || {};
+  const meta = [
+    `модель: ${esc(e.model || "?")}`,
+    `LLM: ${e.latency_s ?? "?"}s`,
+    `конвейер: ${t.total ?? "?"}ms`,
+    e.degraded ? `<span class="fallback">fallback (LLM недоступна)</span>` : "",
+    a.suppressed_repeats ? `подавлено повторов: ${a.suppressed_repeats}` : "",
+    `каналы: ${esc(Object.entries(a.channels || {}).filter(([, v]) => v).map(([k]) => k).join(", ") || "—")}`,
+  ].filter(Boolean).join(" · ");
+  return `<div class="card">
+    <div class="card-head">
+      <span class="sev ${esc(a.severity || "unknown")}">${esc(a.severity || "?")}</span>
+      <span class="name">${esc(a.alertname || "?")}</span>
+      <span class="when">${esc((a.notified_at || a.received_at || "").replace("T", " "))}</span>
+    </div>
+    <div class="cols">
+      <div class="col raw"><h3>сырой алерт (Alertmanager)</h3><pre>${esc(raw)}</pre></div>
+      <div class="col expl"><h3>объяснение агента</h3>${secs}${renderMetrics(a.metrics)}</div>
+    </div>
+    <div class="meta">${meta}</div>
+  </div>`;
+}
+
+async function refresh() {
+  try {
+    const res = await fetch("/api/alerts");
+    const alerts = await res.json();
+    const feed = document.getElementById("feed");
+    if (!alerts.length) return;
+    feed.innerHTML = alerts.map(renderAlert).join("");
+    document.getElementById("st-total").textContent = alerts.length;
+    document.getElementById("st-crit").textContent = alerts.filter(a => a.severity === "critical").length;
+    document.getElementById("st-warn").textContent = alerts.filter(a => a.severity === "warning").length;
+    document.getElementById("st-upd").textContent = new Date().toLocaleTimeString("ru-RU");
+  } catch (e) { /* сервер недоступен — оставляем прошлый кадр */ }
+}
+refresh();
+setInterval(refresh, 3000);
+</script>
+</body>
+</html>

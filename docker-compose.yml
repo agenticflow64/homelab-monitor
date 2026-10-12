@@ -1,5 +1,5 @@
 # docker-compose.yml — homelab-monitor
-# Запуск: cp .env.example .env && заполнить ключи, затем docker compose up -d
+# Запуск: cp .env.example .env && заполнить ключи, затем make up
 
 services:
   prometheus:
@@ -16,10 +16,18 @@ services:
       - "9090:9090"
     restart: unless-stopped
 
+  alertmanager:
+    image: prom/alertmanager:v0.28.1
+    container_name: homelab-alertmanager
+    volumes:
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    ports:
+      - "9093:9093"
+    restart: unless-stopped
+
   node_exporter:
-    # Опционально: метрики хоста. profile "full" — поднимается по желанию:
-    #   docker compose --profile full up -d
-    # Внутри VM/CI можно не поднимать, тогда правила по node_* не сработают.
+    # Метрики хоста. profile "full" — поднимается по желанию:
+    #   make up (= docker compose --profile full up -d)
     image: prom/node-exporter:v1.9.0
     container_name: homelab-node-exporter
     pid: host
@@ -53,23 +61,37 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=admin
     volumes:
       - monitoring-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
     ports:
-      - "3000:3000"
+      - "3001:3000"
     depends_on:
       - prometheus
       - loki
     restart: unless-stopped
 
-  # --- alert-agent: реализуется на вечере 2 (docs/plan.md) ---
-  # alert-agent:
-  #   build: ./agent
-  #   container_name: homelab-alert-agent
-  #   env_file: .env
-  #   volumes:
-  #     - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
-  #   depends_on:
-  #     - prometheus
-  #   restart: unless-stopped
+  alert-agent:
+    build: ./agent
+    container_name: homelab-alert-agent
+    env_file: .env
+    environment:
+      - PROMETHEUS_URL=http://prometheus:9090
+      - LOKI_URL=http://loki:3100
+      - AGENT_DATA_DIR=/app/data
+      - GROUP_COOLDOWN_SECONDS=${GROUP_COOLDOWN_SECONDS:-600}
+    volumes:
+      - ./agent/data:/app/data
+    ports:
+      - "8081:8080"
+    depends_on:
+      - prometheus
+      - loki
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/healthz')"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
 
 volumes:
   monitoring-data:
