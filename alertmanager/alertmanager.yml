@@ -14,6 +14,7 @@ route:
 receivers:
   - name: agent
     webhook_configs:
-      - url: http://alert-agent:8080/webhook
+      # alert-agent работает в host-сети -> адресуемся через host-gateway
+      - url: http://host.docker.internal:8081/webhook
         send_resolved: true
         max_alerts: 0

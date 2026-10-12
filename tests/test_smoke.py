@@ -102,8 +102,8 @@ def test_test_alert_produces_explanation():
         body = json.loads(response.read())
     assert body["processing"] == ["ServiceDown"]
 
-    # Ждём появления записи в ленте с непустым объяснением (LLM до 90s + ретраи)
-    deadline = time.monotonic() + 180
+    # Ждём появления записи в ленте с непустым объяснением (LLM до ~2 мин + ретраи)
+    deadline = time.monotonic() + 300
     entry = None
     while time.monotonic() < deadline:
         _, raw = http_get(f"{AGENT}/api/alerts")

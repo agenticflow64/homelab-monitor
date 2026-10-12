@@ -64,7 +64,7 @@ class Settings:
             telegram_bot_token=_clean(env.get("TELEGRAM_BOT_TOKEN")),
             telegram_chat_id=_clean(env.get("TELEGRAM_CHAT_ID")),
             cooldown_seconds=float(_clean(env.get("GROUP_COOLDOWN_SECONDS")) or 600),
-            llm_timeout_seconds=float(_clean(env.get("LLM_TIMEOUT_SECONDS")) or 90),
+            llm_timeout_seconds=float(_clean(env.get("LLM_TIMEOUT_SECONDS")) or 150),
             llm_retries=int(_clean(env.get("LLM_RETRIES")) or 2),
             data_dir=_clean(env.get("AGENT_DATA_DIR")) or "data",
         )

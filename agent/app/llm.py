@@ -58,16 +58,25 @@ def _post_chat(
         try:
             response = client.post(
                 f"{base_url.rstrip('/')}/chat/completions",
-                headers={"Authorization": f"Bearer {api_key}"},
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "User-Agent": "homelab-monitor/1.0",
+                },
                 json=body,
-                timeout=timeout,
+                timeout=httpx.Timeout(timeout, connect=15),
             )
             if response.status_code == 200:
-                message = response.json()["choices"][0]["message"]
-                content = (message.get("content") or "").strip()
-                if content:
-                    return content
-                last_error = RuntimeError("empty content")
+                payload = response.json()
+                # OpenRouter иногда отдаёт 200 с error в теле (upstream overloaded)
+                if payload.get("error"):
+                    logger.warning("llm upstream error body (attempt %s)", attempt + 1)
+                    last_error = RuntimeError("upstream error body")
+                else:
+                    message = payload["choices"][0]["message"]
+                    content = (message.get("content") or "").strip()
+                    if content:
+                        return content
+                    last_error = RuntimeError("empty content")
             else:
                 # Тело ошибки может содержать детали, но не ключи — можно логировать код.
                 logger.warning(

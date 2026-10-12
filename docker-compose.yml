@@ -8,7 +8,7 @@ services:
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./alerts.yml:/etc/prometheus/alerts.yml:ro
-      - monitoring-data:/prometheus
+      - prom-data:/prometheus
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.retention.time=7d
@@ -21,6 +21,8 @@ services:
     container_name: homelab-alertmanager
     volumes:
       - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "9093:9093"
     restart: unless-stopped
@@ -48,7 +50,7 @@ services:
     image: grafana/loki:3.4.2
     container_name: homelab-loki
     volumes:
-      - monitoring-data:/loki
+      - loki-data:/loki
     ports:
       - "3100:3100"
     restart: unless-stopped
@@ -60,7 +62,7 @@ services:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin
     volumes:
-      - monitoring-data:/var/lib/grafana
+      - grafana-data:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
     ports:
       - "3001:3000"
@@ -72,21 +74,21 @@ services:
   alert-agent:
     build: ./agent
     container_name: homelab-alert-agent
+    # host-сеть: исходящие HTTPS к LLM-провайдерам ходят через маршруты хоста
+    # (в bridge-сети этого стенда TLS до внешних API периодически виснет).
+    network_mode: host
     env_file: .env
     environment:
-      - PROMETHEUS_URL=http://prometheus:9090
-      - LOKI_URL=http://loki:3100
+      - PORT=8081
+      - PROMETHEUS_URL=http://localhost:9090
+      - LOKI_URL=http://localhost:3100
       - AGENT_DATA_DIR=/app/data
       - GROUP_COOLDOWN_SECONDS=${GROUP_COOLDOWN_SECONDS:-600}
+      - GLM_MODEL=glm-4.5-flash
     volumes:
       - ./agent/data:/app/data
-    ports:
-      - "8081:8080"
-    depends_on:
-      - prometheus
-      - loki
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/healthz')"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8081/healthz')"]
       interval: 15s
       timeout: 5s
       retries: 3
@@ -94,4 +96,6 @@ services:
     restart: unless-stopped
 
 volumes:
-  monitoring-data:
+  prom-data:
+  loki-data:
+  grafana-data:
