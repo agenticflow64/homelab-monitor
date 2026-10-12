@@ -41,9 +41,9 @@ incident-disk: ## залить ~9ГБ на системную ФС -> HighDiskUs
 	dd if=/dev/zero of=/var/tmp/homelab-sim/fillfile bs=1M count=9216 status=progress
 	@df -h / | tail -1
 
-incident-cpu:  ## загрузить все ядра на 6.5 мин -> HighCPUUsage (~через 7 мин)
-	@echo "нагрузка CPU (timeout 390s, все ядра: $(nproc))..."
-	timeout 390 bash -c 'for i in $$(seq $(nproc)); do (while :; do :; done) & done; wait' || true
+incident-cpu:  ## загрузить все ядра на 11 мин -> HighCPUUsage (~через 10-11 мин)
+	@echo "нагрузка CPU (timeout 660s, все ядра: $(nproc)); правилу нужно окно rate[5m] + for:5m..."
+	timeout 660 bash -c 'for i in $$(seq $(nproc)); do (while :; do :; done) & done; wait' || true
 
 incident-down: ## остановить loki -> ServiceDown (~через 2 мин)
 	$(COMPOSE) stop loki
