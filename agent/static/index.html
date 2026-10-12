@@ -3,152 +3,113 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>homelab-monitor — лента алертов</title>
+<title>homelab-monitor · лента алертов</title>
 <style>
   :root {
-    --bg: #0f172a;
-    --bg-card: #111c33;
-    --bg-code: #0b1222;
-    --text: #e2e8f0;
-    --muted: #7c8aa5;
-    --accent-a: #22d3ee;
-    --accent-b: #8b5cf6;
-    --border: #1e293b;
-    --critical: #f87171;
-    --warning: #fbbf24;
+    --bg: #ffffff;
+    --bg-subtle: #f6f8fa;
+    --text: #1f2328;
+    --text-secondary: #57606a;
+    --border: #d0d7de;
+    --accent: #0969da;
+    --green: #1a7f37;
+    --amber: #9a6700;
+    --red: #cf222e;
+    --radius: 6px;
   }
   * { box-sizing: border-box; }
   body {
     margin: 0;
     background: var(--bg);
     color: var(--text);
-    font: 15px/1.55 "Segoe UI", system-ui, -apple-system, sans-serif;
+    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   }
-  .wrap { max-width: 1180px; margin: 0 auto; padding: 28px 20px 60px; }
-  header { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; margin-bottom: 6px; }
-  h1 {
-    margin: 0;
-    font-size: 24px;
-    font-weight: 700;
-    background: linear-gradient(90deg, var(--accent-a), var(--accent-b));
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 24px 20px 56px; }
+  header {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: 16px; flex-wrap: wrap; padding-bottom: 12px; border-bottom: 1px solid var(--border);
   }
-  .sub { color: var(--muted); font-size: 13px; }
-  .stats { margin: 14px 0 22px; display: flex; gap: 10px; flex-wrap: wrap; }
-  .pill {
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    padding: 3px 12px;
-    font-size: 13px;
-    color: var(--muted);
-    background: var(--bg-card);
+  h1 { margin: 0; font-size: 18px; font-weight: 600; }
+  .sub { color: var(--text-secondary); font-size: 13px; }
+  .stats-line { color: var(--text-secondary); font-size: 13px; padding: 10px 0 14px; }
+  .stats-line b { color: var(--text); font-weight: 600; }
+  .stats-line span + span::before { content: "·"; margin: 0 8px; color: var(--border); }
+
+  .feed { border: 1px solid var(--border); border-radius: var(--radius); }
+  .alert + .alert { border-top: 1px solid var(--border); }
+
+  /* строка инцидента */
+  .alert-row {
+    display: flex; align-items: baseline; gap: 12px; width: 100%;
+    padding: 9px 14px; background: none; border: none; cursor: pointer;
+    font: inherit; color: inherit; text-align: left;
   }
-  .pill b { color: var(--text); }
-  .empty {
-    border: 1px dashed var(--border);
-    border-radius: 14px;
-    padding: 48px 20px;
-    text-align: center;
-    color: var(--muted);
+  .alert-row:hover { background: var(--bg-subtle); }
+  .sev { font-size: 12px; font-weight: 600; white-space: nowrap; }
+  .sev::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
+  .sev.critical { color: var(--red); }
+  .sev.critical::before { background: var(--red); }
+  .sev.warning { color: var(--amber); }
+  .sev.warning::before { background: var(--amber); }
+  .sev.unknown { color: var(--text-secondary); }
+  .sev.unknown::before { background: var(--text-secondary); }
+  .alert-row .name { font-weight: 600; white-space: nowrap; }
+  .alert-row .source { color: var(--text-secondary); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .alert-row .when { color: var(--text-secondary); font-size: 12.5px; margin-left: auto; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .alert-row .chev { color: var(--text-secondary); font-size: 13px; flex: none; display: inline-block; transition: transform .12s; }
+  .alert.open .chev { transform: rotate(90deg); }
+
+  /* раскрытие */
+  .alert-body { display: none; padding: 12px 14px 14px; background: var(--bg-subtle); border-top: 1px solid var(--border); }
+  .alert.open .alert-body { display: block; }
+  .blocks { display: grid; grid-template-columns: 1fr 1.2fr; gap: 14px; }
+  @media (max-width: 860px) { .blocks { grid-template-columns: 1fr; } }
+  .block h3 {
+    margin: 0 0 6px; font-size: 12px; font-weight: 600; color: var(--text-secondary);
   }
-  .card {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    margin-bottom: 18px;
-    overflow: hidden;
+  .block pre {
+    margin: 0; padding: 10px 12px; background: var(--bg); border: 1px solid var(--border);
+    border-radius: var(--radius); white-space: pre-wrap; word-break: break-word;
+    font: 12px/1.6 ui-monospace, "Cascadia Mono", Menlo, Consolas, monospace;
+    color: var(--text-secondary); max-height: 340px; overflow-y: auto;
   }
-  .card-head {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 12px 18px;
-    border-bottom: 1px solid var(--border);
-    flex-wrap: wrap;
-  }
-  .sev {
-    font-size: 11px;
-    letter-spacing: .08em;
-    font-weight: 700;
-    padding: 2px 9px;
-    border-radius: 6px;
-    text-transform: uppercase;
-  }
-  .sev.critical { color: #1f0d0d; background: var(--critical); }
-  .sev.warning { color: #211a06; background: var(--warning); }
-  .sev.unknown { color: var(--text); background: #475569; }
-  .card-head .name { font-weight: 700; font-size: 16px; }
-  .card-head .when { color: var(--muted); font-size: 12px; margin-left: auto; }
-  .cols { display: grid; grid-template-columns: 1fr 1.25fr; }
-  @media (max-width: 860px) { .cols { grid-template-columns: 1fr; } }
-  .col { padding: 16px 18px; }
-  .col + .col { border-left: 1px solid var(--border); }
-  @media (max-width: 860px) { .col + .col { border-left: none; border-top: 1px solid var(--border); } }
-  .col h3 {
-    margin: 0 0 10px;
-    font-size: 11px;
-    letter-spacing: .12em;
-    text-transform: uppercase;
-    color: var(--muted);
-    font-weight: 600;
-  }
-  .col.raw { background: var(--bg-code); }
-  .col.raw pre {
-    margin: 0;
-    white-space: pre-wrap;
-    word-break: break-word;
-    font: 12.5px/1.6 ui-monospace, "Cascadia Mono", Menlo, Consolas, monospace;
-    color: #9fb0cc;
-  }
-  .expl { font-size: 14.5px; }
   .expl .sec { margin-bottom: 10px; }
-  .expl .sec b {
-    display: block;
-    font-size: 12px;
-    letter-spacing: .06em;
-    margin-bottom: 2px;
-    background: linear-gradient(90deg, var(--accent-a), var(--accent-b));
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-  }
-  .expl .sec span { white-space: pre-wrap; }
+  .expl .sec b { display: block; font-size: 12px; margin-bottom: 2px; color: var(--text-secondary); }
+  .expl .sec span { white-space: pre-wrap; font-size: 13.5px; }
   .meta {
-    display: flex;
-    gap: 14px;
-    flex-wrap: wrap;
-    margin-top: 10px;
-    padding-top: 10px;
-    border-top: 1px solid var(--border);
-    color: var(--muted);
-    font-size: 12px;
+    display: flex; gap: 14px; flex-wrap: wrap;
+    margin-top: 12px; color: var(--text-secondary); font-size: 12px;
   }
-  .meta .fallback { color: var(--warning); }
-  details.metrics { margin-top: 8px; color: var(--muted); font-size: 12px; }
+  .meta .fallback { color: var(--amber); }
+  details.metrics { margin-top: 8px; color: var(--text-secondary); font-size: 12px; }
   details.metrics summary { cursor: pointer; user-select: none; }
-  details.metrics pre { font-size: 12px; color: #9fb0cc; }
-  footer { margin-top: 26px; color: var(--muted); font-size: 12px; text-align: center; }
+  details.metrics pre { font-size: 12px; color: var(--text-secondary); }
+
+  .empty {
+    border: 1px dashed var(--border); border-radius: var(--radius);
+    padding: 40px 20px; text-align: center; color: var(--text-secondary);
+  }
+  .empty b { color: var(--text); }
+  footer { margin-top: 22px; color: var(--text-secondary); font-size: 12px; }
 </style>
 </head>
 <body>
 <div class="wrap">
   <header>
     <h1>homelab-monitor · лента алертов</h1>
-    <span class="sub">Prometheus → Alertmanager → alert-agent (LLM-объяснение)</span>
+    <span class="sub">Prometheus → Alertmanager → агент с LLM-объяснением</span>
   </header>
 
-  <div class="stats">
-    <span class="pill">алертов с объяснением: <b id="st-total">0</b></span>
-    <span class="pill">critical: <b id="st-crit">0</b></span>
-    <span class="pill">warning: <b id="st-warn">0</b></span>
-    <span class="pill">обновлено: <b id="st-upd">—</b></span>
+  <div class="stats-line" id="stats">
+    <span>алертов с объяснением: <b id="st-total">0</b></span>
+    <span>critical: <b id="st-crit">0</b></span>
+    <span>warning: <b id="st-warn">0</b></span>
+    <span>обновлено: <b id="st-upd">ещё нет</b></span>
   </div>
 
-  <div id="feed"><div class="empty">Пока тихо. Запусти демо-инцидент: <b>make incident-disk</b> / <b>make incident-cpu</b> / <b>make incident-down</b></div></div>
+  <div id="feed"><div class="empty">Пока тихо. Запустите демо-инцидент: <b>make incident-disk</b>, <b>make incident-cpu</b> или <b>make incident-down</b> и алерты появятся здесь.</div></div>
 
-  <footer>демо-стенд портфолио · цифры из локальных замеров</footer>
+  <footer>Демо-стенд портфолио. Цифры из локальных замеров.</footer>
 </div>
 
 <script>
@@ -157,6 +118,7 @@ const HEADERS = [
   ["ВЕРОЯТНАЯ ПРИЧИНА", "вероятная причина"],
   ["ЧТО ПРОВЕРИТЬ", "что проверить"],
 ];
+const openKeys = new Set();
 
 function esc(s) {
   return String(s ?? "").replace(/[&<>"']/g, c => ({
@@ -185,7 +147,7 @@ function splitExplanation(text) {
 function renderMetrics(m) {
   if (!m || !m.length) return "";
   const rows = m.map(r => {
-    if (r.error) return `# ${r.title} — нет данных (${r.error})`;
+    if (r.error) return `# ${r.title}: нет данных (${r.error})`;
     const series = r.series.map(p => {
       const labels = Object.entries(p.labels || {}).map(([k, v]) => `${k}="${v}"`).join(",");
       return `${r.title}{${labels}} = ${p.value}`;
@@ -193,6 +155,12 @@ function renderMetrics(m) {
     return `# ${r.title}\n${series || "(нет точек)"}`;
   }).join("\n\n");
   return `<details class="metrics"><summary>метрики из Prometheus (${m.length})</summary><pre>${esc(rows)}</pre></details>`;
+}
+
+function alertSource(a) {
+  const first = (a.raw || [])[0] || {};
+  const l = first.labels || {};
+  return [l.job, l.instance].filter(Boolean).join(" · ") || "alertmanager";
 }
 
 function renderAlert(a) {
@@ -212,21 +180,33 @@ function renderAlert(a) {
     `конвейер: ${t.total ?? "?"}ms`,
     e.degraded ? `<span class="fallback">fallback (LLM недоступна)</span>` : "",
     a.suppressed_repeats ? `подавлено повторов: ${a.suppressed_repeats}` : "",
-    `каналы: ${esc(Object.entries(a.channels || {}).filter(([, v]) => v).map(([k]) => k).join(", ") || "—")}`,
+    `каналы: ${esc(Object.entries(a.channels || {}).filter(([, v]) => v).map(([k]) => k).join(", ") || "нет")}`,
   ].filter(Boolean).join(" · ");
-  return `<div class="card">
-    <div class="card-head">
+  const key = a.id ?? `${a.alertname}|${a.notified_at || a.received_at}`;
+  return `<div class="alert ${openKeys.has(key) ? "open" : ""}" data-key="${esc(key)}">
+    <button type="button" class="alert-row" onclick="toggleAlert(this)">
+      <span class="chev">›</span>
       <span class="sev ${esc(a.severity || "unknown")}">${esc(a.severity || "?")}</span>
       <span class="name">${esc(a.alertname || "?")}</span>
+      <span class="source">${esc(alertSource(a))}</span>
       <span class="when">${esc((a.notified_at || a.received_at || "").replace("T", " "))}</span>
+    </button>
+    <div class="alert-body">
+      <div class="blocks">
+        <div class="block"><h3>Сырой алерт</h3><pre>${esc(raw)}</pre></div>
+        <div class="block expl"><h3>Объяснение</h3>${secs}${renderMetrics(a.metrics)}</div>
+      </div>
+      <div class="meta">${meta}</div>
     </div>
-    <div class="cols">
-      <div class="col raw"><h3>сырой алерт (Alertmanager)</h3><pre>${esc(raw)}</pre></div>
-      <div class="col expl"><h3>объяснение агента</h3>${secs}${renderMetrics(a.metrics)}</div>
-    </div>
-    <div class="meta">${meta}</div>
   </div>`;
 }
+
+window.toggleAlert = (btn) => {
+  const el = btn.closest(".alert");
+  el.classList.toggle("open");
+  const key = el.dataset.key;
+  if (el.classList.contains("open")) openKeys.add(key); else openKeys.delete(key);
+};
 
 async function refresh() {
   try {
@@ -234,7 +214,7 @@ async function refresh() {
     const alerts = await res.json();
     const feed = document.getElementById("feed");
     if (!alerts.length) return;
-    feed.innerHTML = alerts.map(renderAlert).join("");
+    feed.innerHTML = `<div class="feed">${alerts.map(renderAlert).join("")}</div>`;
     document.getElementById("st-total").textContent = alerts.length;
     document.getElementById("st-crit").textContent = alerts.filter(a => a.severity === "critical").length;
     document.getElementById("st-warn").textContent = alerts.filter(a => a.severity === "warning").length;
