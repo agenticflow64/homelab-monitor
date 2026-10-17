@@ -34,11 +34,15 @@ feed:          ## открыть ленту алертов
 
 # --- демо-инциденты (см. .claude/skills/incident-sim) ---
 
+# заполнять нужно именно корневую ФС (/): /home — отдельный раздел,
+# а старый /var/tmp/homelab-sim принадлежит root, поэтому новый каталог
+SIM_DIR ?= /var/tmp/homelab-fill
+
 incident-disk: ## залить ~9ГБ на системную ФС -> HighDiskUsage (~через 2 мин)
-	@mkdir -p /var/tmp/homelab-sim
+	@mkdir -p $(SIM_DIR)
 	@df -h / | tail -1
-	@echo "пишу 9G в /var/tmp/homelab-sim/fillfile..."
-	dd if=/dev/zero of=/var/tmp/homelab-sim/fillfile bs=1M count=9216 status=progress
+	@echo "пишу 9G в $(SIM_DIR)/fillfile..."
+	dd if=/dev/zero of=$(SIM_DIR)/fillfile bs=1M count=9216 status=progress
 	@df -h / | tail -1
 
 incident-cpu:  ## загрузить все ядра на 11 мин -> HighCPUUsage (~через 10-11 мин)
@@ -50,7 +54,7 @@ incident-down: ## остановить loki -> ServiceDown (~через 2 мин
 	@echo "loki остановлен; восстановление: make cleanup"
 
 cleanup:       ## убрать все воздействия инцидентов и вернуть сервисы
-	rm -rf /var/tmp/homelab-sim
+	rm -rf $(SIM_DIR)
 	pkill -f 'while :; do :; done' || true
 	$(COMPOSE) start
 	@df -h / | tail -1
