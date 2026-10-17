@@ -1,0 +1,22 @@
+[Script Info]
+ScriptType: v4.00+
+PlayResX: 1920
+PlayResY: 1080
+WrapStyle: 0
+ScaledBorderAndShadow: yes
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,DejaVu Sans,42,&H00FFFFFF,&H000000FF,&H00000000,&H8C000000,0,0,0,0,100,100,0,0,4,1,0,2,80,80,48,204
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:00.30,0:00:03.80,Default,,0,0,0,,Домашняя лаба: Prometheus + Grafana + AI-агент объяснений
+Dialogue: 0,0:00:04.20,0:00:09.40,Default,,0,0,0,,Инцидент: сервис остановлен — алерт зреет в Alertmanager
+Dialogue: 0,0:00:09.80,0:00:13.50,Default,,0,0,0,,Сырой алерт пришёл — дальше его разбирает агент
+Dialogue: 0,0:00:14.00,0:00:19.50,Default,,0,0,0,,Карточка в ленте: что случилось / вероятная причина / что проверить
+Dialogue: 0,0:00:20.00,0:00:25.50,Default,,0,0,0,,Инцидент закрыт — карточка остаётся в истории ленты
+Dialogue: 0,0:00:26.00,0:00:30.20,Default,,0,0,0,,Новый инцидент: корневой диск 94%
+Dialogue: 0,0:00:31.00,0:00:37.00,Default,,0,0,0,,Агент указывает проблемный раздел и команды для проверки
+Dialogue: 0,0:00:46.00,0:00:52.00,Default,,0,0,0,,Гипотеза причины приходит вместе с алертом — разбор из минут в секунды
+Dialogue: 0,0:00:55.80,0:00:59.40,Default,,0,0,0,,Кейс: agenticflow64.github.io
