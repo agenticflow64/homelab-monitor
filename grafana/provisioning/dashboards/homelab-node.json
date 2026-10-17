@@ -1,0 +1,68 @@
+{
+  "title": "Node — домашняя лаба",
+  "uid": "homelab-node",
+  "tags": ["homelab"],
+  "timezone": "browser",
+  "refresh": "10s",
+  "time": { "from": "now-15m", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Статусы сервисов (up)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 12, "x": 0, "y": 0 },
+      "datasource": "Prometheus",
+      "targets": [{ "expr": "up", "legendFormat": "{{job}}" }],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": { "0": { "text": "DOWN", "color": "red" }, "1": { "text": "UP", "color": "green" } } }
+          ],
+          "thresholds": { "steps": [{ "color": "red" }, { "color": "green", "value": 1 }] }
+        }
+      },
+      "options": { "colorMode": "background", "graphMode": "none" }
+    },
+    {
+      "id": 2,
+      "title": "CPU, % занято",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": "Prometheus",
+      "targets": [
+        { "expr": "100 - (avg by (instance) (rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)", "legendFormat": "{{instance}}" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percent", "max": 100, "thresholds": { "steps": [{ "color": "green" }, { "color": "orange", "value": 80 }, { "color": "red", "value": 90 }] } } }
+    },
+    {
+      "id": 3,
+      "title": "Диск по разделам, % занято",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "datasource": "Prometheus",
+      "targets": [
+        { "expr": "(1 - node_filesystem_avail_bytes{fstype!~\"tmpfs|overlay|squashfs\"} / node_filesystem_size_bytes{fstype!~\"tmpfs|overlay|squashfs\"}) * 100", "legendFormat": "{{mountpoint}}" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percent", "max": 100, "thresholds": { "steps": [{ "color": "green" }, { "color": "orange", "value": 85 }, { "color": "red", "value": 92 }] } } }
+    },
+    {
+      "id": 4,
+      "title": "Память, % занято",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "datasource": "Prometheus",
+      "targets": [
+        { "expr": "(1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100", "legendFormat": "RAM" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percent", "max": 100 } }
+    },
+    {
+      "id": 5,
+      "title": "Load average (1m)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "datasource": "Prometheus",
+      "targets": [{ "expr": "node_load1", "legendFormat": "load1" }]
+    }
+  ]
+}

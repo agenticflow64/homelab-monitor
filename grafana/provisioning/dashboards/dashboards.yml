@@ -1,0 +1,12 @@
+# Автозагрузка дашбордов (файлы рядом в ./)
+apiVersion: 1
+
+providers:
+  - name: homelab
+    orgId: 1
+    folder: Home Lab
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    options:
+      path: /etc/grafana/provisioning/dashboards
